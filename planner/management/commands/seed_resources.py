@@ -6,20 +6,18 @@ Idempotent: re-running updates existing rows (matched by Resource.name,
 which is unique) rather than duplicating them, so it's safe to run again
 after editing this file to correct/extend an entry.
 
-Known gap: the source batches record "Grading levers" as a compact tag
-per resource (e.g. "Resistance (soft <-> firm)") rather than as separate
-grade-up/grade-down text. The domain reference docs (not yet loaded into
-this project) are where that split properly lives. Until those are seeded,
-each GradingLever created here carries the same unsplit tag text in both
-grade_up_description and grade_down_description, clearly prefixed as
-provisional -- refine once the domain docs are in.
+Each entry's "grading_levers_text" is the resource batch doc's shorthand
+tag (e.g. "Resistance (soft <-> firm)") -- kept here as data but not
+turned into GradingLever rows directly. Run seed_grading_levers next: it
+seeds the real per-domain grade-up/grade-down tables from the domain
+reference docs and re-links resources to those canonical levers using
+this shorthand text.
 
-Also note: the Phase 0 summary's own resource count ("100 resources") and
-the sum of the 11 actual batch files (110 entries: 20 fine motor + 10 each
+Also note: the Phase 0 summary's resource count ("100 resources") and the
+sum of the 11 actual batch files (110 entries: 20 fine motor + 10 each
 across dressing/grooming/feeding/toileting/gross motor/sensory/visual/
-emotional/play) don't reconcile -- that mismatch is in the source docs
-themselves. This command seeds all 110 entries that actually appear in
-the batch files.
+emotional/play) didn't reconcile -- confirmed to be a documentation typo;
+110 is correct and all 110 are seeded here.
 """
 
 import re
@@ -27,7 +25,7 @@ import re
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from planner.models import Domain, GradingLever, Resource, SubSkill
+from planner.models import Domain, Resource, SubSkill
 
 
 DOMAIN_SLUGS = {
@@ -489,19 +487,6 @@ class Command(BaseCommand):
                 for n in sub_skill_names
             ]
             resource.sub_skills.set(sub_skills)
-
-            grading_levers_text = extra.get("grading_levers_text")
-            if grading_levers_text:
-                levers = []
-                for segment in split_top_level_commas(grading_levers_text):
-                    lever_name = segment.split("(", 1)[0].strip()
-                    note = f"From resource tagging (not yet split into up/down): {segment}"
-                    lever, _ = GradingLever.objects.get_or_create(
-                        domain=primary_domain, name=lever_name,
-                        defaults={"grade_down_description": note, "grade_up_description": note},
-                    )
-                    levers.append(lever)
-                resource.grading_levers.set(levers)
 
             if created:
                 created_count += 1
