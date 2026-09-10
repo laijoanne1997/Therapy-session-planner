@@ -1,0 +1,27 @@
+{% extends "planner/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Children</h1>
+<p><a href="{% url 'child-intake' %}" role="button">+ New child (intake)</a></p>
+
+{% if children %}
+<table>
+    <thead>
+        <tr><th>Name/initial</th><th>Age</th><th>Environment</th><th>Goals</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for child in children %}
+        <tr>
+            <td>{{ child.initial_or_name }}</td>
+            <td>{{ child.age_years }}y{% if child.age_months %} {{ child.age_months }}m{% endif %}</td>
+            <td>{{ child.get_default_environment_display }}</td>
+            <td>{{ child.goals.count }}</td>
+            <td><a href="{% url 'child-detail' child.pk %}">Open</a></td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No children yet. Start with "New child (intake)" above.</p>
+{% endif %}
+{% endblock %}

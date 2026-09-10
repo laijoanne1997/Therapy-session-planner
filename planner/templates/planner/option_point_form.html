@@ -1,0 +1,12 @@
+{% extends "planner/base.html" %}
+{% block title %}Option point{% endblock %}
+{% block content %}
+<h1>Option point</h1>
+<p>For {{ goal.child.initial_or_name }}'s goal ({{ goal.domain.name }})</p>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save</button>
+    <a href="{% url 'option-point-list' goal.pk %}" role="button" class="secondary">Cancel</a>
+</form>
+{% endblock %}

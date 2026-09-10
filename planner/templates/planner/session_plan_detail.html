@@ -1,0 +1,50 @@
+{% extends "planner/base.html" %}
+{% block title %}Session plan{% endblock %}
+{% block content %}
+<h1>Generated plan review</h1>
+<p>Screen 4 of 5: for {{ plan.goal.child.initial_or_name }} &middot; {{ plan.goal.domain.name }}
+&middot; {{ plan.get_environment_display }} &middot; {{ plan.session_length_minutes }} min session</p>
+
+<p>
+    <strong>{{ total_minutes }} / {{ plan.session_length_minutes }} minutes</strong> allocated across
+    {{ blocks|length }} block{{ blocks|length|pluralize }}.
+</p>
+
+{% for block in blocks %}
+<article>
+    <h4>{{ block.order }}. {{ block.get_block_type_display }} — {{ block.title }} ({{ block.duration_minutes }} min)</h4>
+    <p style="white-space: pre-line;">{{ block.activity_description }}</p>
+    <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
+    {% if block.resources.all %}
+    <p><strong>Resources:</strong> {% for r in block.resources.all %}{{ r.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if block.grade_up_note %}<p><strong>Grade up:</strong> {{ block.grade_up_note }}</p>{% endif %}
+    {% if block.grade_down_note %}<p><strong>Grade down:</strong> {{ block.grade_down_note }}</p>{% endif %}
+    <p>
+        <a href="{% url 'activity-block-edit' block.pk %}">Edit</a> &middot;
+        <a href="{% url 'activity-block-delete' block.pk %}">Delete</a>
+    </p>
+</article>
+{% empty %}
+<p>No activity blocks yet.</p>
+{% endfor %}
+
+<p><a href="{% url 'activity-block-create' plan.pk %}" role="button" class="secondary">+ Add activity block</a></p>
+
+<hr>
+<h2>Home program</h2>
+{% if home_program %}
+<article>
+    <p><strong>Goal (plain language):</strong> {{ home_program.goal_plain_language }}</p>
+    <p><strong>Why this helps:</strong> {{ home_program.why_this_helps }}</p>
+    <p style="white-space: pre-line;">{{ home_program.activity_description }}</p>
+    <p><strong>Frequency:</strong> {{ home_program.frequency }}</p>
+</article>
+<p><a href="{% url 'home-program-edit' plan.pk %}">Edit home program</a></p>
+{% else %}
+<p><a href="{% url 'home-program-edit' plan.pk %}">+ Add a home program</a> (optional)</p>
+{% endif %}
+
+<hr>
+<p><a href="{% url 'session-plan-export' plan.pk %}" role="button">Continue to export</a></p>
+{% endblock %}

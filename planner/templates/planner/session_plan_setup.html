@@ -1,0 +1,11 @@
+{% extends "planner/base.html" %}
+{% block title %}Session setup{% endblock %}
+{% block content %}
+<h1>Session setup</h1>
+<p>For {{ goal.child.initial_or_name }}'s goal ({{ goal.domain.name }}) — set the session length and environment before building the plan.</p>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Start building the plan</button>
+</form>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "planner/base.html" %}
+{% block title %}Export{% endblock %}
+{% block extra_head %}
+<style>
+    @media print {
+        nav, .no-print { display: none !important; }
+        main { max-width: 100%; }
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="no-print">
+    <p>Screen 5 of 5: export.
+    {% if family_friendly %}
+        <a href="?">Switch to clinical view</a>
+    {% else %}
+        <a href="?family=1">Switch to family-friendly view</a>
+    {% endif %}
+    &middot; <a href="javascript:window.print()" role="button">Print / Save as PDF</a>
+    </p>
+</div>
+
+<h1>{{ plan.goal.child.initial_or_name }}'s session plan</h1>
+<p>{{ plan.get_environment_display }} &middot; {{ plan.session_length_minutes }} minutes</p>
+<p><strong>Goal:</strong> {{ plan.goal.outcome_goal_text|default:plan.goal.raw_goal_text }}</p>
+
+{% for block in blocks %}
+<article>
+    <h4>{{ block.order }}. {{ block.get_block_type_display }} — {{ block.title }} ({{ block.duration_minutes }} min)</h4>
+    <p style="white-space: pre-line;">{{ block.activity_description }}</p>
+    {% if not family_friendly %}
+    <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
+    {% endif %}
+    {% if block.resources.all %}
+    <p><strong>Resources:</strong> {% for r in block.resources.all %}{{ r.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+    {% if block.grade_up_note %}<p><strong>If too easy:</strong> {{ block.grade_up_note }}</p>{% endif %}
+    {% if block.grade_down_note %}<p><strong>If too hard:</strong> {{ block.grade_down_note }}</p>{% endif %}
+</article>
+{% endfor %}
+
+{% if home_program %}
+<hr>
+<h2>Home program</h2>
+<article>
+    <p><strong>{{ home_program.goal_plain_language }}</strong></p>
+    <p>{{ home_program.why_this_helps }}</p>
+    <p style="white-space: pre-line;">{{ home_program.activity_description }}</p>
+    <p><strong>How often:</strong> {{ home_program.frequency }}</p>
+    {% if home_program.safety_note and home_program.safety_note != "None specific to this activity." %}
+    <p><strong>Safety note:</strong> {{ home_program.safety_note }}</p>
+    {% endif %}
+</article>
+{% endif %}
+{% endblock %}

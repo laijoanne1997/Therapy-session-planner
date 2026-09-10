@@ -1,0 +1,12 @@
+{% extends "planner/base.html" %}
+{% block title %}Home program{% endblock %}
+{% block content %}
+<h1>Home program</h1>
+<p>Derived from {{ plan.goal.child.initial_or_name }}'s session plan &mdash; write it in plain, parent-facing language.</p>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save</button>
+    <a href="{% url 'session-plan-detail' plan.pk %}" role="button" class="secondary">Cancel</a>
+</form>
+{% endblock %}

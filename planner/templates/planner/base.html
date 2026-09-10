@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Session Planner{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+<nav class="container">
+    <ul>
+        <li><strong><a href="{% url 'dashboard' %}">Session Planner</a></strong></li>
+    </ul>
+    <ul>
+        {% if user.is_authenticated %}
+            <li><a href="{% url 'child-intake' %}">New child</a></li>
+            <li><a href="{% url 'logout' %}">Log out ({{ user.username }})</a></li>
+        {% else %}
+            <li><a href="{% url 'login' %}">Log in</a></li>
+        {% endif %}
+    </ul>
+</nav>
+<main class="container">
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

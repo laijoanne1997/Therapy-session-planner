@@ -1,0 +1,10 @@
+{% extends "planner/base.html" %}
+{% block title %}Add goal{% endblock %}
+{% block content %}
+<h1>Add a goal for {{ child.initial_or_name }}</h1>
+<form method="post">
+    {% csrf_token %}
+    {{ goal_form.as_p }}
+    <button type="submit">Continue to goal refinement</button>
+</form>
+{% endblock %}

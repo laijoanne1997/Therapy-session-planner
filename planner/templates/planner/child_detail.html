@@ -1,0 +1,42 @@
+{% extends "planner/base.html" %}
+{% block title %}{{ child.initial_or_name }}{% endblock %}
+{% block content %}
+<h1>{{ child.initial_or_name }}</h1>
+<p>
+    {{ child.age_years }}y{% if child.age_months %} {{ child.age_months }}m{% endif %}
+    &middot; {{ child.get_default_environment_display }}
+    {% if child.interests.all %}&middot; Interests: {% for i in child.interests.all %}{{ i.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+</p>
+{% if child.proformas.all %}
+<p><strong>Diagnoses noted:</strong> {% for p in child.proformas.all %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+{% endif %}
+
+<article>
+    <h3>Current presentation</h3>
+    <p style="white-space: pre-line;">{{ child.current_presentation }}</p>
+    {% if child.masking_note %}
+    <h3>Masking note</h3>
+    <p style="white-space: pre-line;">{{ child.masking_note }}</p>
+    {% endif %}
+    {% if child.family_cultural_context %}
+    <h3>Family/cultural context</h3>
+    <p style="white-space: pre-line;">{{ child.family_cultural_context }}</p>
+    {% endif %}
+</article>
+
+<h2>Goals</h2>
+<p><a href="{% url 'goal-create' child.pk %}">+ Add another goal</a></p>
+{% for goal in child.goals.all %}
+<article>
+    <h4>{{ goal.domain.name }}</h4>
+    <p>{{ goal.raw_goal_text }}</p>
+    <p>
+        <a href="{% url 'goal-refine' goal.pk %}">Refine goal</a> &middot;
+        <a href="{% url 'option-point-list' goal.pk %}">Option points</a> &middot;
+        <a href="{% url 'session-plan-setup' goal.pk %}">Session plan</a>
+    </p>
+</article>
+{% empty %}
+<p>No goals yet.</p>
+{% endfor %}
+{% endblock %}

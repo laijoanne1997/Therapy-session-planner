@@ -1,0 +1,28 @@
+{% extends "planner/base.html" %}
+{% block title %}Option points{% endblock %}
+{% block content %}
+<h1>Option points</h1>
+<p>Screen 3 of 5: judgment-dependent decisions for {{ goal.child.initial_or_name }}'s goal. Optional — skip if none apply.</p>
+
+{% for op in option_points %}
+<article>
+    <p><strong>{{ op.question_text }}</strong></p>
+    <ul>
+        {% for option in op.options_json %}<li>{{ option }}</li>{% endfor %}
+    </ul>
+    {% if op.selected_option %}<p><em>Selected:</em> {{ op.selected_option }}</p>{% endif %}
+    {% if op.rationale_note %}<p><em>Why this depends on judgment:</em> {{ op.rationale_note }}</p>{% endif %}
+    <p>
+        <a href="{% url 'option-point-edit' op.pk %}">Edit</a> &middot;
+        <a href="{% url 'option-point-delete' op.pk %}">Delete</a>
+    </p>
+</article>
+{% empty %}
+<p>No option points added.</p>
+{% endfor %}
+
+<p>
+    <a href="{% url 'option-point-create' goal.pk %}" role="button" class="secondary">+ Add option point</a>
+    <a href="{% url 'session-plan-setup' goal.pk %}" role="button">Continue to session plan</a>
+</p>
+{% endblock %}

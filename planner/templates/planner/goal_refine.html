@@ -1,0 +1,15 @@
+{% extends "planner/base.html" %}
+{% block title %}Refine goal{% endblock %}
+{% block content %}
+<h1>Goal refinement</h1>
+<p>Screen 2 of 5: for {{ goal.child.initial_or_name }} &middot; {{ goal.domain.name }}</p>
+<article>
+    <strong>Goal as given:</strong>
+    <p>{{ goal.raw_goal_text }}</p>
+</article>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Continue to option points</button>
+</form>
+{% endblock %}

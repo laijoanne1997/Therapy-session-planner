@@ -1,0 +1,12 @@
+{% extends "planner/base.html" %}
+{% block title %}Activity block{% endblock %}
+{% block content %}
+<h1>Activity block</h1>
+<p>For {{ plan.goal.child.initial_or_name }}'s plan ({{ plan.goal.domain.name }})</p>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Save</button>
+    <a href="{% url 'session-plan-detail' plan.pk %}" role="button" class="secondary">Cancel</a>
+</form>
+{% endblock %}

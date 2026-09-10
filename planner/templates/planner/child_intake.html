@@ -1,0 +1,18 @@
+{% extends "planner/base.html" %}
+{% block title %}Intake{% endblock %}
+{% block content %}
+<h1>Intake</h1>
+<p>Screen 1 of 5: child profile and the goal, in your own words.</p>
+<form method="post">
+    {% csrf_token %}
+    <fieldset>
+        <legend>Child profile</legend>
+        {{ child_form.as_p }}
+    </fieldset>
+    <fieldset>
+        <legend>Goal</legend>
+        {{ goal_form.as_p }}
+    </fieldset>
+    <button type="submit">Continue to goal refinement</button>
+</form>
+{% endblock %}
