@@ -10,6 +10,7 @@
 {% if child.proformas.all %}
 <p><strong>Diagnoses noted:</strong> {% for p in child.proformas.all %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
 {% endif %}
+<p><a href="{% url 'child-delete' child.pk %}">Delete this child</a></p>
 
 <article>
     <h3>Current presentation</h3>

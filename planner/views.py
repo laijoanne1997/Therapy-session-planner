@@ -1,10 +1,12 @@
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
+from . import ai
 from .forms import (
     ActivityBlockForm,
     ChildIntakeForm,
@@ -14,7 +16,7 @@ from .forms import (
     OptionPointForm,
     SessionPlanSetupForm,
 )
-from .models import ActivityBlock, Child, Goal, OptionPoint, SessionPlan
+from .models import ActivityBlock, Child, Goal, OptionPoint, Resource, SessionPlan
 
 
 class DashboardView(LoginRequiredMixin, ListView):
@@ -55,6 +57,12 @@ class ChildDetailView(LoginRequiredMixin, DetailView):
     template_name = "planner/child_detail.html"
 
 
+class ChildDeleteView(LoginRequiredMixin, DeleteView):
+    model = Child
+    template_name = "planner/confirm_delete.html"
+    success_url = reverse_lazy("dashboard")
+
+
 class GoalCreateForChildView(LoginRequiredMixin, View):
     template_name = "planner/goal_create.html"
 
@@ -81,6 +89,23 @@ class GoalRefineView(LoginRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse("option-point-list", kwargs={"goal_pk": self.object.pk})
+
+
+class GoalSuggestView(LoginRequiredMixin, View):
+    """POST-only: calls the AI, then re-renders the refine form pre-filled
+    with the suggestion (not saved) for the therapist to review and edit."""
+
+    def post(self, request, pk):
+        goal = get_object_or_404(Goal, pk=pk)
+        try:
+            suggestion = ai.suggest_goal_refinement(goal)
+        except ai.AIGenerationError as exc:
+            messages.error(request, f"AI suggestion failed: {exc}")
+            return redirect("goal-refine", pk=goal.pk)
+        form = GoalRefineForm(instance=goal, initial=suggestion)
+        return render(request, "planner/goal_refine.html", {
+            "goal": goal, "form": form, "ai_suggested": True,
+        })
 
 
 class OptionPointListView(LoginRequiredMixin, View):
@@ -170,6 +195,67 @@ class SessionPlanDetailView(LoginRequiredMixin, DetailView):
         context["total_minutes"] = sum(b.duration_minutes for b in blocks)
         context["home_program"] = getattr(self.object, "home_program", None)
         return context
+
+
+class SessionPlanSuggestView(LoginRequiredMixin, View):
+    """GET calls the AI and previews suggested blocks with checkboxes;
+    POST creates ActivityBlocks only for the ones the therapist selected.
+    Suggestions are held in the session between GET and POST, never
+    written to the database until selected."""
+
+    template_name = "planner/session_plan_suggest.html"
+
+    @staticmethod
+    def _session_key(plan_pk):
+        return f"ai_suggested_blocks_{plan_pk}"
+
+    def get(self, request, plan_pk):
+        plan = get_object_or_404(SessionPlan, pk=plan_pk)
+        try:
+            blocks = ai.suggest_activity_blocks(plan)
+        except ai.AIGenerationError as exc:
+            messages.error(request, f"AI suggestion failed: {exc}")
+            return redirect("session-plan-detail", pk=plan.pk)
+
+        serializable = []
+        for block in blocks:
+            resources = block["resources"]
+            serializable.append({
+                **{k: v for k, v in block.items() if k != "resources"},
+                "resource_ids": [r.pk for r in resources],
+                "resource_names": [r.name for r in resources],
+            })
+        request.session[self._session_key(plan.pk)] = serializable
+        return render(request, self.template_name, {"plan": plan, "blocks": serializable})
+
+    def post(self, request, plan_pk):
+        plan = get_object_or_404(SessionPlan, pk=plan_pk)
+        blocks = request.session.get(self._session_key(plan.pk), [])
+        selected = {int(i) for i in request.POST.getlist("include")}
+
+        next_order = plan.blocks.count() + 1
+        created = 0
+        for i, block in enumerate(blocks):
+            if i not in selected:
+                continue
+            activity_block = ActivityBlock.objects.create(
+                session_plan=plan,
+                block_type=block["block_type"],
+                order=next_order,
+                duration_minutes=block["duration_minutes"],
+                title=block["title"],
+                activity_description=block["activity_description"],
+                clinical_reasoning=block["clinical_reasoning"],
+                grade_up_note=block.get("grade_up_note", ""),
+                grade_down_note=block.get("grade_down_note", ""),
+            )
+            activity_block.resources.set(Resource.objects.filter(pk__in=block.get("resource_ids", [])))
+            next_order += 1
+            created += 1
+
+        request.session.pop(self._session_key(plan.pk), None)
+        messages.success(request, f"Added {created} AI-suggested activity block(s).")
+        return redirect("session-plan-detail", pk=plan.pk)
 
 
 class ActivityBlockCreateView(LoginRequiredMixin, CreateView):

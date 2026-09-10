@@ -7,6 +7,16 @@
     <strong>Goal as given:</strong>
     <p>{{ goal.raw_goal_text }}</p>
 </article>
+
+{% if ai_suggested %}
+<p><em>AI-suggested text below — review and edit before saving.</em></p>
+{% else %}
+<form method="post" action="{% url 'goal-suggest' goal.pk %}">
+    {% csrf_token %}
+    <button type="submit" class="secondary">Suggest with AI</button>
+</form>
+{% endif %}
+
 <form method="post">
     {% csrf_token %}
     {{ form.as_p }}

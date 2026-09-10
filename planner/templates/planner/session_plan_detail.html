@@ -29,7 +29,10 @@
 <p>No activity blocks yet.</p>
 {% endfor %}
 
-<p><a href="{% url 'activity-block-create' plan.pk %}" role="button" class="secondary">+ Add activity block</a></p>
+<p>
+    <a href="{% url 'activity-block-create' plan.pk %}" role="button" class="secondary">+ Add activity block</a>
+    <a href="{% url 'session-plan-suggest' plan.pk %}" role="button" class="secondary">Suggest activity blocks with AI</a>
+</p>
 
 <hr>
 <h2>Home program</h2>

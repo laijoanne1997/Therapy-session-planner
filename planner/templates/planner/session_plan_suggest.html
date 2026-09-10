@@ -1,0 +1,36 @@
+{% extends "planner/base.html" %}
+{% block title %}Suggested activity blocks{% endblock %}
+{% block content %}
+<h1>AI-suggested activity blocks</h1>
+<p>
+    For {{ plan.goal.child.initial_or_name }}'s plan ({{ plan.goal.domain.name }}). Review each
+    suggestion, uncheck any you don't want, then add the rest — you can still edit or delete them
+    afterward like any manually-added block.
+</p>
+
+<form method="post">
+    {% csrf_token %}
+    {% for block in blocks %}
+    <article>
+        <label>
+            <input type="checkbox" name="include" value="{{ forloop.counter0 }}" checked>
+            <strong>{{ block.block_type|title }} — {{ block.title }} ({{ block.duration_minutes }} min)</strong>
+        </label>
+        <p style="white-space: pre-line;">{{ block.activity_description }}</p>
+        <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
+        {% if block.resource_names %}
+        <p><strong>Resources:</strong> {{ block.resource_names|join:", " }}</p>
+        {% endif %}
+        {% if block.grade_up_note %}<p><strong>Grade up:</strong> {{ block.grade_up_note }}</p>{% endif %}
+        {% if block.grade_down_note %}<p><strong>Grade down:</strong> {{ block.grade_down_note }}</p>{% endif %}
+    </article>
+    {% empty %}
+    <p>No suggestions were returned.</p>
+    {% endfor %}
+
+    {% if blocks %}
+    <button type="submit">Add selected blocks</button>
+    {% endif %}
+    <a href="{% url 'session-plan-detail' plan.pk %}" role="button" class="secondary">Cancel</a>
+</form>
+{% endblock %}
