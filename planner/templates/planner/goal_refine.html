@@ -17,9 +17,9 @@
 </form>
 {% endif %}
 
-<form method="post">
+<form method="post" action="{% url 'goal-refine' goal.pk %}">
     {% csrf_token %}
     {{ form.as_p }}
-    <button type="submit">Continue to option points</button>
+    <button type="submit">Save and continue to option points</button>
 </form>
 {% endblock %}
