@@ -1,36 +1,147 @@
 {% extends "planner/base.html" %}
+{% load planner_extras %}
 {% block title %}Suggested activity blocks{% endblock %}
+{% block extra_head %}
+<style>
+    .suggested-card .card-body {
+        transition: transform 0.25s ease, opacity 0.25s ease;
+        transform-style: preserve-3d;
+    }
+    .suggested-card .card-body.swapping-out {
+        transform: scale(0.85) rotateY(90deg);
+        opacity: 0;
+    }
+    .suggested-card .card-body.swapping-in {
+        animation: card-flip-in 0.3s ease;
+    }
+    @keyframes card-flip-in {
+        from { transform: scale(0.85) rotateY(-90deg); opacity: 0; }
+        to { transform: scale(1) rotateY(0); opacity: 1; }
+    }
+    ul.steps { margin-top: 0.25rem; }
+    .refresh-btn[disabled] { opacity: 0.6; }
+</style>
+{% endblock %}
 {% block content %}
 <h1>AI-suggested activity blocks</h1>
 <p>
     For {{ plan.goal.child.initial_or_name }}'s plan ({{ plan.goal.domain.name }}). Review each
-    suggestion, uncheck any you don't want, then add the rest — you can still edit or delete them
-    afterward like any manually-added block.
+    suggestion, uncheck any you don't want, or hit refresh to swap one out for a different idea.
+    You can still edit or delete anything after adding it.
 </p>
 
-<form method="post">
+<form method="post" id="suggest-form">
     {% csrf_token %}
+    <div id="cards">
     {% for block in blocks %}
-    <article>
-        <label>
-            <input type="checkbox" name="include" value="{{ forloop.counter0 }}" checked>
-            <strong>{{ block.block_type|title }} — {{ block.title }} ({{ block.duration_minutes }} min)</strong>
-        </label>
-        <p style="white-space: pre-line;">{{ block.activity_description }}</p>
-        <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
-        {% if block.resource_names %}
-        <p><strong>Resources:</strong> {{ block.resource_names|join:", " }}</p>
-        {% endif %}
-        {% if block.grade_up_note %}<p><strong>Grade up:</strong> {{ block.grade_up_note }}</p>{% endif %}
-        {% if block.grade_down_note %}<p><strong>Grade down:</strong> {{ block.grade_down_note }}</p>{% endif %}
+    <article class="suggested-card" data-index="{{ forloop.counter0 }}">
+        <div class="card-body">
+            <label>
+                <input type="checkbox" name="include" value="{{ forloop.counter0 }}" checked>
+                <strong>{{ block.block_type|block_type_label }} — {{ block.title }} ({{ block.duration_minutes }} min)</strong>
+            </label>
+            <p><strong>Steps:</strong></p>
+            <ul class="steps">
+                {% for step in block.activity_description|splitlines_clean %}
+                <li>{{ step }}</li>
+                {% endfor %}
+            </ul>
+            <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
+            {% if block.resource_names %}
+            <p><strong>Resources:</strong> {{ block.resource_names|join:", " }}</p>
+            {% endif %}
+            {% if block.grade_up_note %}<p><strong>Grade up:</strong> {{ block.grade_up_note }}</p>{% endif %}
+            {% if block.grade_down_note %}<p><strong>Grade down:</strong> {{ block.grade_down_note }}</p>{% endif %}
+        </div>
+        <button type="button" class="secondary refresh-btn" data-index="{{ forloop.counter0 }}"
+                data-refresh-url="{% url 'session-plan-suggest-refresh' plan.pk forloop.counter0 %}">
+            🔄 Refresh this activity
+        </button>
     </article>
     {% empty %}
     <p>No suggestions were returned.</p>
     {% endfor %}
+    </div>
 
     {% if blocks %}
     <button type="submit">Add selected blocks</button>
     {% endif %}
     <a href="{% url 'session-plan-detail' plan.pk %}" role="button" class="secondary">Cancel</a>
 </form>
+
+<script>
+(function () {
+    const csrftoken = document.querySelector('#suggest-form [name=csrfmiddlewaretoken]').value;
+    const blockTypeLabels = {
+        warm_up: "Warm-up", main: "Main",
+        movement_reset: "Movement reset", warm_down: "Warm-down",
+    };
+
+    function stepsHtml(description) {
+        return description.split("\n").map(function (l) { return l.trim(); })
+            .filter(Boolean)
+            .map(function (l) { return "<li>" + l + "</li>"; })
+            .join("");
+    }
+
+    function cardBodyHtml(index, block) {
+        var label = blockTypeLabels[block.block_type] || block.block_type;
+        var html = '<label><input type="checkbox" name="include" value="' + index + '" checked>'
+            + '<strong>' + label + ' — ' + block.title + ' (' + block.duration_minutes + ' min)</strong></label>'
+            + '<p><strong>Steps:</strong></p><ul class="steps">' + stepsHtml(block.activity_description) + '</ul>'
+            + '<p><strong>Clinical reasoning:</strong> ' + block.clinical_reasoning + '</p>';
+        if (block.resource_names && block.resource_names.length) {
+            html += '<p><strong>Resources:</strong> ' + block.resource_names.join(", ") + '</p>';
+        }
+        if (block.grade_up_note) {
+            html += '<p><strong>Grade up:</strong> ' + block.grade_up_note + '</p>';
+        }
+        if (block.grade_down_note) {
+            html += '<p><strong>Grade down:</strong> ' + block.grade_down_note + '</p>';
+        }
+        return html;
+    }
+
+    document.querySelectorAll(".refresh-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var index = btn.dataset.index;
+            var card = document.querySelector('.suggested-card[data-index="' + index + '"]');
+            var body = card.querySelector(".card-body");
+
+            btn.disabled = true;
+            var originalLabel = btn.textContent;
+            btn.textContent = "Refreshing...";
+
+            fetch(btn.dataset.refreshUrl, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrftoken },
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (!data.ok) {
+                        alert(data.error || "Couldn't refresh that activity.");
+                        btn.disabled = false;
+                        btn.textContent = originalLabel;
+                        return;
+                    }
+                    body.classList.add("swapping-out");
+                    body.addEventListener("transitionend", function onOut() {
+                        body.removeEventListener("transitionend", onOut);
+                        body.innerHTML = cardBodyHtml(index, data.block);
+                        body.classList.remove("swapping-out");
+                        body.classList.add("swapping-in");
+                        setTimeout(function () { body.classList.remove("swapping-in"); }, 350);
+                        btn.disabled = false;
+                        btn.textContent = originalLabel;
+                    }, { once: true });
+                })
+                .catch(function () {
+                    alert("Refresh failed — check your connection and try again.");
+                    btn.disabled = false;
+                    btn.textContent = originalLabel;
+                });
+        });
+    });
+})();
+</script>
 {% endblock %}

@@ -123,6 +123,45 @@ def suggest_goal_refinement(goal):
 # Activity block generation (Screen 4)
 # ---------------------------------------------------------------------------
 
+DESCRIPTION_FIELD = {
+    "type": "string",
+    "description": (
+        "Complete enough to run as written: setup, then the step-by-step "
+        "sequence, then a genuine payoff/goal-state, per the "
+        "functional-play-narrative rule. Format as ONE STEP PER LINE "
+        "(plain short imperative sentences, no numbering, no bullet "
+        "characters, no markdown) so it renders as a clean checklist."
+    ),
+}
+
+
+def _block_properties(resource_names):
+    return {
+        "block_type": {
+            "type": "string",
+            "enum": [c[0] for c in ActivityBlock.BlockType.choices],
+        },
+        "duration_minutes": {"type": "integer"},
+        "title": {"type": "string"},
+        "activity_description": DESCRIPTION_FIELD,
+        "clinical_reasoning": {"type": "string"},
+        "resource_names": {
+            "type": "array",
+            "items": {"type": "string", "enum": resource_names} if resource_names else {"type": "string"},
+            "description": "Only names from the provided resource list — never invent a resource.",
+        },
+        "grade_up_note": {"type": "string"},
+        "grade_down_note": {"type": "string"},
+    }
+
+
+_BLOCK_REQUIRED = [
+    "block_type", "duration_minutes", "title",
+    "activity_description", "clinical_reasoning",
+    "resource_names", "grade_up_note", "grade_down_note",
+]
+
+
 def _activity_blocks_tool(resource_names):
     return {
         "name": "suggest_activity_blocks",
@@ -134,39 +173,24 @@ def _activity_blocks_tool(resource_names):
                     "type": "array",
                     "items": {
                         "type": "object",
-                        "properties": {
-                            "block_type": {
-                                "type": "string",
-                                "enum": [c[0] for c in ActivityBlock.BlockType.choices],
-                            },
-                            "duration_minutes": {"type": "integer"},
-                            "title": {"type": "string"},
-                            "activity_description": {
-                                "type": "string",
-                                "description": (
-                                    "Complete enough to run as written: setup, "
-                                    "step-by-step sequence, and a genuine payoff/"
-                                    "goal-state, per the functional-play-narrative rule."
-                                ),
-                            },
-                            "clinical_reasoning": {"type": "string"},
-                            "resource_names": {
-                                "type": "array",
-                                "items": {"type": "string", "enum": resource_names} if resource_names else {"type": "string"},
-                                "description": "Only names from the provided resource list — never invent a resource.",
-                            },
-                            "grade_up_note": {"type": "string"},
-                            "grade_down_note": {"type": "string"},
-                        },
-                        "required": [
-                            "block_type", "duration_minutes", "title",
-                            "activity_description", "clinical_reasoning",
-                            "resource_names", "grade_up_note", "grade_down_note",
-                        ],
+                        "properties": _block_properties(resource_names),
+                        "required": _BLOCK_REQUIRED,
                     },
                 },
             },
             "required": ["blocks"],
+        },
+    }
+
+
+def _single_block_tool(resource_names):
+    return {
+        "name": "suggest_replacement_block",
+        "description": "Suggest one alternative activity block to replace an existing one.",
+        "input_schema": {
+            "type": "object",
+            "properties": _block_properties(resource_names),
+            "required": _BLOCK_REQUIRED,
         },
     }
 
@@ -235,8 +259,8 @@ def _few_shot_examples(domain, exclude_plan):
     return lines
 
 
-def suggest_activity_blocks(plan):
-    """Return a list of block dicts (with resolved `resources` Resource queryset) for a SessionPlan."""
+def _plan_context_lines(plan):
+    """Context shared by both whole-plan and single-block generation."""
     goal = plan.goal
     child = goal.child
     domain = goal.domain
@@ -262,6 +286,41 @@ def suggest_activity_blocks(plan):
     lines += _proforma_context_lines(child, domain)
     lines += _few_shot_examples(domain, exclude_plan=plan)
 
+    return domain, resource_names, lines
+
+
+def _block_input_to_dict(block):
+    from .models import Resource
+
+    resources = Resource.objects.filter(name__in=block.get("resource_names", []))
+    return {
+        "block_type": block["block_type"],
+        "duration_minutes": block["duration_minutes"],
+        "title": block["title"],
+        "activity_description": block["activity_description"],
+        "clinical_reasoning": block["clinical_reasoning"],
+        "resources": resources,
+        "grade_up_note": block.get("grade_up_note", ""),
+        "grade_down_note": block.get("grade_down_note", ""),
+    }
+
+
+BASE_SYSTEM_PROMPT = (
+    "You are assisting a paediatric occupational therapist in building a "
+    "session plan. Every activity must be complete enough to run as written "
+    "(setup, steps, and a genuine payoff/goal-state) and every "
+    "clinical_reasoning must explain which component skill gap the activity "
+    "targets, per the child's actual documented presentation. Use only "
+    "resources from the provided list, by exact name. Ground grade-up/"
+    "grade-down notes in the domain's established grading levers where "
+    "relevant."
+)
+
+
+def suggest_activity_blocks(plan):
+    """Return a list of block dicts (with resolved `resources` Resource queryset) for a SessionPlan."""
+    domain, resource_names, lines = _plan_context_lines(plan)
+
     existing_blocks = list(plan.blocks.all())
     if existing_blocks:
         lines.append(
@@ -269,34 +328,38 @@ def suggest_activity_blocks(plan):
             "to fill out the rest of the session length, not a full duplicate plan."
         )
 
-    system = (
-        "You are assisting a paediatric occupational therapist in building a "
-        "session plan. Suggest a sequence of activity blocks (warm-up, main, "
-        "movement resets as needed, warm-down) that together roughly fill the "
-        "stated session length. Every activity must be complete enough to run "
-        "as written (setup, steps, and a genuine payoff/goal-state) and every "
-        "clinical_reasoning must explain which component skill gap the "
-        "activity targets, per the child's actual documented presentation. "
-        "Use only resources from the provided list, by exact name. Ground "
-        "grade-up/grade-down notes in the domain's established grading "
-        "levers where relevant."
+    system = BASE_SYSTEM_PROMPT + (
+        " Suggest a sequence of activity blocks (warm-up, main, movement "
+        "resets as needed, warm-down) that together roughly fill the stated "
+        "session length."
     )
 
     result = _call_tool(_client(), system, "\n".join(lines), _activity_blocks_tool(resource_names))
+    return [_block_input_to_dict(b) for b in result.get("blocks", [])]
 
-    from .models import Resource
 
-    blocks = []
-    for i, block in enumerate(result.get("blocks", [])):
-        resources = Resource.objects.filter(name__in=block.get("resource_names", []))
-        blocks.append({
-            "block_type": block["block_type"],
-            "duration_minutes": block["duration_minutes"],
-            "title": block["title"],
-            "activity_description": block["activity_description"],
-            "clinical_reasoning": block["clinical_reasoning"],
-            "resources": resources,
-            "grade_up_note": block.get("grade_up_note", ""),
-            "grade_down_note": block.get("grade_down_note", ""),
-        })
-    return blocks
+def suggest_single_block(plan, current_block, other_blocks):
+    """
+    Return one replacement block dict for `current_block` (a dict with at
+    least block_type/duration_minutes/title/activity_description), genuinely
+    different from it and from `other_blocks` already in the set.
+    """
+    domain, resource_names, lines = _plan_context_lines(plan)
+
+    lines.append(
+        f"The therapist wants a DIFFERENT alternative activity to replace this "
+        f"one — same block_type ('{current_block['block_type']}') and similar "
+        f"duration (~{current_block['duration_minutes']} min), same goal, but "
+        f"a genuinely different activity idea, not a reworded version:"
+    )
+    lines.append(f"  Current: {current_block['title']} — {current_block['activity_description'][:300]}")
+
+    if other_blocks:
+        lines.append("Other blocks already in this set (avoid duplicating their core mechanic):")
+        for b in other_blocks:
+            lines.append(f"  - [{b['block_type']}] {b['title']}")
+
+    system = BASE_SYSTEM_PROMPT + " Suggest exactly one replacement activity block."
+
+    result = _call_tool(_client(), system, "\n".join(lines), _single_block_tool(resource_names))
+    return _block_input_to_dict(result)

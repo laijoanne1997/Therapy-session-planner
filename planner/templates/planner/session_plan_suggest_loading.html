@@ -1,0 +1,81 @@
+{% extends "planner/base.html" %}
+{% block title %}Generating suggestions...{% endblock %}
+{% block extra_head %}
+<style>
+    .ai-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        min-height: 50vh;
+        text-align: center;
+    }
+    .ai-spinner {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        border: 5px solid var(--pico-muted-border-color);
+        border-top-color: var(--pico-primary);
+        animation: ai-spin 0.9s linear infinite;
+    }
+    @keyframes ai-spin {
+        to { transform: rotate(360deg); }
+    }
+    #ai-quote {
+        font-style: italic;
+        min-height: 1.5em;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="ai-loading">
+    <div class="ai-spinner" aria-hidden="true"></div>
+    <p id="ai-quote">Warming up the therapy putty...</p>
+</div>
+
+{% csrf_token %}
+
+<script>
+(function () {
+    const quotes = [
+        "Warming up the therapy putty...",
+        "Consulting the sensory diet menu...",
+        "Counting stickers on the star chart...",
+        "Untangling a very determined shoelace...",
+        "Asking the fidget toys for their opinion...",
+        "Double-checking nobody needs a movement break...",
+        "Grading the activity up, then down, then up again...",
+        "Reticulating fine motor splines...",
+        "Negotiating with a mildly reluctant dinosaur...",
+        "Making sure the payoff is genuinely satisfying...",
+        "Reviewing the grading levers one more time...",
+        "Practicing deep breaths before the big reveal...",
+    ];
+
+    const quoteEl = document.getElementById("ai-quote");
+    let i = 0;
+    setInterval(function () {
+        i = (i + 1) % quotes.length;
+        quoteEl.textContent = quotes[i];
+    }, 1800);
+
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    fetch(window.location.pathname, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrftoken },
+    })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                window.location.href = "{% url 'session-plan-suggest-review' plan.pk %}";
+            } else {
+                window.location.href = "{% url 'session-plan-detail' plan.pk %}?ai_error=" + encodeURIComponent(data.error || "Unknown error");
+            }
+        })
+        .catch(function () {
+            window.location.href = "{% url 'session-plan-detail' plan.pk %}?ai_error=" + encodeURIComponent("Request failed — check your connection and try again.");
+        });
+})();
+</script>
+{% endblock %}
