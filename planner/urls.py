@@ -22,6 +22,7 @@ urlpatterns = [
     path("plans/<int:plan_pk>/blocks/new/", views.ActivityBlockCreateView.as_view(), name="activity-block-create"),
     path("blocks/<int:pk>/edit/", views.ActivityBlockUpdateView.as_view(), name="activity-block-edit"),
     path("blocks/<int:pk>/delete/", views.ActivityBlockDeleteView.as_view(), name="activity-block-delete"),
+    path("blocks/<int:pk>/regrade/<str:direction>/", views.ActivityBlockRegradeView.as_view(), name="activity-block-regrade"),
     path("plans/<int:plan_pk>/home-program/", views.HomeProgramEditView.as_view(), name="home-program-edit"),
     path("plans/<int:pk>/export/", views.SessionPlanExportView.as_view(), name="session-plan-export"),
 ]

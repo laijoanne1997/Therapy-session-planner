@@ -3,9 +3,20 @@
 {% block content %}
 <h1>Session setup</h1>
 <p>For {{ goal.child.initial_or_name }}'s goal ({{ goal.domain.name }}) — set the session length and environment before building the plan.</p>
+{% if previous %}
+<p>
+    Most recent session: {{ previous.created_at|date:"j M Y" }},
+    {{ previous.blocks.count }} activity block{{ previous.blocks.count|pluralize }}.
+</p>
+{% endif %}
 <form method="post">
     {% csrf_token %}
-    {{ form.as_p }}
+    {% if previous %}
+        {{ form.as_p }}
+    {% else %}
+        {{ form.session_length_minutes.label_tag }} {{ form.session_length_minutes }}
+        {{ form.environment.label_tag }} {{ form.environment }}
+    {% endif %}
     <button type="submit">Start building the plan</button>
 </form>
 {% endblock %}

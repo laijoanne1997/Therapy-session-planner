@@ -160,28 +160,46 @@ class OptionPointDeleteView(LoginRequiredMixin, DeleteView):
 
 
 class SessionPlanSetupView(LoginRequiredMixin, View):
+    """Always shows the setup form — a goal can have multiple SessionPlans
+    over time (one per real-world session), collated on child_detail.html.
+    If a previous plan exists, offers to copy its activity blocks forward."""
+
     template_name = "planner/session_plan_setup.html"
 
     def get(self, request, goal_pk):
         goal = get_object_or_404(Goal, pk=goal_pk)
-        existing = goal.session_plans.first()
-        if existing:
-            return redirect("session-plan-detail", pk=existing.pk)
-        form = SessionPlanSetupForm(initial={
-            "session_length_minutes": 45,
-            "environment": goal.child.default_environment,
-        })
-        return render(request, self.template_name, {"goal": goal, "form": form})
+        previous = goal.session_plans.order_by("-created_at").first()
+        initial = {
+            "session_length_minutes": previous.session_length_minutes if previous else 45,
+            "environment": previous.environment if previous else goal.child.default_environment,
+        }
+        form = SessionPlanSetupForm(initial=initial)
+        return render(request, self.template_name, {"goal": goal, "form": form, "previous": previous})
 
     def post(self, request, goal_pk):
         goal = get_object_or_404(Goal, pk=goal_pk)
+        previous = goal.session_plans.order_by("-created_at").first()
         form = SessionPlanSetupForm(request.POST)
         if form.is_valid():
             plan = form.save(commit=False)
             plan.goal = goal
             plan.save()
+            if previous and form.cleaned_data["copy_previous"]:
+                for block in previous.blocks.all():
+                    new_block = ActivityBlock.objects.create(
+                        session_plan=plan,
+                        block_type=block.block_type,
+                        order=block.order,
+                        duration_minutes=block.duration_minutes,
+                        title=block.title,
+                        activity_description=block.activity_description,
+                        clinical_reasoning=block.clinical_reasoning,
+                        grade_up_note=block.grade_up_note,
+                        grade_down_note=block.grade_down_note,
+                    )
+                    new_block.resources.set(block.resources.all())
             return redirect("session-plan-detail", pk=plan.pk)
-        return render(request, self.template_name, {"goal": goal, "form": form})
+        return render(request, self.template_name, {"goal": goal, "form": form, "previous": previous})
 
 
 class SessionPlanDetailView(LoginRequiredMixin, DetailView):
@@ -357,6 +375,43 @@ class ActivityBlockUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_success_url(self):
         return reverse("session-plan-detail", kwargs={"pk": self.object.session_plan_id})
+
+
+class ActivityBlockRegradeView(LoginRequiredMixin, View):
+    """POST-only: calls the AI to concretely apply this block's own
+    grade_up_note/grade_down_note, then re-renders the edit form
+    pre-filled with the suggestion (not saved) for the therapist to
+    review and edit — same pattern as GoalSuggestView."""
+
+    def post(self, request, pk, direction):
+        block = get_object_or_404(ActivityBlock, pk=pk)
+        note = block.grade_up_note if direction == "up" else block.grade_down_note
+        if direction not in ("up", "down") or not note:
+            messages.error(request, "No grading note to apply for that direction.")
+            return redirect("session-plan-detail", pk=block.session_plan_id)
+
+        try:
+            suggestion = ai.suggest_graded_variant(block, direction)
+        except ai.AIGenerationError as exc:
+            messages.error(request, f"AI suggestion failed: {exc}")
+            return redirect("session-plan-detail", pk=block.session_plan_id)
+
+        form = ActivityBlockForm(
+            instance=block,
+            domain=block.session_plan.goal.domain,
+            initial={
+                "duration_minutes": suggestion["duration_minutes"],
+                "title": suggestion["title"],
+                "activity_description": suggestion["activity_description"],
+                "clinical_reasoning": suggestion["clinical_reasoning"],
+                "resources": suggestion["resources"],
+                "grade_up_note": suggestion["grade_up_note"],
+                "grade_down_note": suggestion["grade_down_note"],
+            },
+        )
+        return render(request, "planner/activity_block_form.html", {
+            "form": form, "plan": block.session_plan, "ai_suggested": True,
+        })
 
 
 class ActivityBlockDeleteView(LoginRequiredMixin, DeleteView):

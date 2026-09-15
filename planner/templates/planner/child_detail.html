@@ -33,9 +33,26 @@
     <p>{{ goal.raw_goal_text }}</p>
     <p>
         <a href="{% url 'goal-refine' goal.pk %}">Refine goal</a> &middot;
-        <a href="{% url 'option-point-list' goal.pk %}">Option points</a> &middot;
-        <a href="{% url 'session-plan-setup' goal.pk %}">Session plan</a>
+        <a href="{% url 'option-point-list' goal.pk %}">Option points</a>
     </p>
+
+    <p><strong>Sessions:</strong></p>
+    {% if goal.session_plans.all %}
+    <ul>
+        {% for plan in goal.session_plans.all %}
+        <li>
+            Session {{ forloop.counter }} — {{ plan.created_at|date:"j M Y" }},
+            {{ plan.session_length_minutes }} min, {{ plan.get_environment_display }}
+            ({{ plan.blocks.count }} block{{ plan.blocks.count|pluralize }})
+            &middot; <a href="{% url 'session-plan-detail' plan.pk %}">View</a>
+            &middot; <a href="{% url 'session-plan-export' plan.pk %}">Export</a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p>No sessions yet.</p>
+    {% endif %}
+    <p><a href="{% url 'session-plan-setup' goal.pk %}">+ Start next session</a></p>
 </article>
 {% empty %}
 <p>No goals yet.</p>

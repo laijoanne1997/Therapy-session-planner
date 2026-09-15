@@ -260,6 +260,9 @@ class SessionPlan(models.Model):
     environment = models.CharField(max_length=20, choices=Child.Environment.choices)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["created_at"]
+
     def __str__(self):
         return f"Plan for {self.goal.child} ({self.session_length_minutes} min)"
 

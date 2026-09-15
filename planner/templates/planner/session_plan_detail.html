@@ -30,6 +30,17 @@
     <p>
         <a href="{% url 'activity-block-edit' block.pk %}">Edit</a> &middot;
         <a href="{% url 'activity-block-delete' block.pk %}">Delete</a>
+        {% if block.grade_up_note %}
+        &middot;
+        <form method="post" action="{% url 'activity-block-regrade' block.pk 'up' %}" style="display:inline">
+            {% csrf_token %}<button type="submit" class="secondary">⬆ Upgrade</button>
+        </form>
+        {% endif %}
+        {% if block.grade_down_note %}
+        <form method="post" action="{% url 'activity-block-regrade' block.pk 'down' %}" style="display:inline">
+            {% csrf_token %}<button type="submit" class="secondary">⬇ Downgrade</button>
+        </form>
+        {% endif %}
     </p>
 </article>
 {% empty %}

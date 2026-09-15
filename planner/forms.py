@@ -105,6 +105,11 @@ class OptionPointForm(forms.ModelForm):
 
 
 class SessionPlanSetupForm(forms.ModelForm):
+    copy_previous = forms.BooleanField(
+        required=False, initial=True,
+        label="Copy activity blocks from the most recent session",
+    )
+
     class Meta:
         model = SessionPlan
         fields = ["session_length_minutes", "environment"]

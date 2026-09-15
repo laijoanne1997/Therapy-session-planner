@@ -363,3 +363,46 @@ def suggest_single_block(plan, current_block, other_blocks):
 
     result = _call_tool(_client(), system, "\n".join(lines), _single_block_tool(resource_names))
     return _block_input_to_dict(result)
+
+
+def suggest_graded_variant(block, direction):
+    """
+    Return a replacement block dict for an existing, already-saved
+    ActivityBlock — rewritten to concretely apply that block's own
+    grade_up_note (direction="up") or grade_down_note (direction="down"),
+    not just restate it. block_type is kept implicitly (the prompt is
+    told not to change it); the caller decides whether to actually apply
+    block_type/order from the result.
+    """
+    if direction not in ("up", "down"):
+        raise ValueError("direction must be 'up' or 'down'")
+
+    plan = block.session_plan
+    domain, resource_names, lines = _plan_context_lines(plan)
+
+    note = block.grade_up_note if direction == "up" else block.grade_down_note
+    verb = "harder" if direction == "up" else "easier"
+
+    lines.append(
+        f"The therapist wants to make this existing activity {verb}, by "
+        f"concretely applying its own existing grading instruction below — "
+        f"actually change the activity to reflect it, don't just restate the "
+        f"instruction back:"
+    )
+    lines.append(f"  Current activity: {block.title} — {block.activity_description}")
+    lines.append(f"  Grading instruction ({verb}): {note}")
+
+    other_blocks = block.session_plan.blocks.exclude(pk=block.pk)
+    if other_blocks:
+        lines.append("Other blocks already in this plan (avoid duplicating their core mechanic):")
+        for b in other_blocks:
+            lines.append(f"  - [{b.block_type}] {b.title}")
+
+    system = BASE_SYSTEM_PROMPT + (
+        f" Suggest exactly one revised activity block that is genuinely {verb} "
+        f"than the current one, keeping the same block_type and a similar "
+        f"duration unless the grading change genuinely requires otherwise."
+    )
+
+    result = _call_tool(_client(), system, "\n".join(lines), _single_block_tool(resource_names))
+    return _block_input_to_dict(result)
