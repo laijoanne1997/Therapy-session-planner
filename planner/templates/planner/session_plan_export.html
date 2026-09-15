@@ -1,4 +1,5 @@
 {% extends "planner/base.html" %}
+{% load planner_extras %}
 {% block title %}Export{% endblock %}
 {% block extra_head %}
 <style>
@@ -10,6 +11,7 @@
 {% endblock %}
 {% block content %}
 <div class="no-print">
+    <p><a href="{% url 'session-plan-detail' plan.pk %}">&larr; Back to plan review</a></p>
     <p>Screen 5 of 5: export.
     {% if family_friendly %}
         <a href="?">Switch to clinical view</a>
@@ -27,7 +29,12 @@
 {% for block in blocks %}
 <article>
     <h4>{{ block.order }}. {{ block.get_block_type_display }} — {{ block.title }} ({{ block.duration_minutes }} min)</h4>
-    <p style="white-space: pre-line;">{{ block.activity_description }}</p>
+    <p><strong>Steps:</strong></p>
+    <ul class="steps">
+        {% for step in block.activity_description|splitlines_clean %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ul>
     {% if not family_friendly %}
     <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
     {% endif %}

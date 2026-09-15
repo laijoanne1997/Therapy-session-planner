@@ -1,6 +1,8 @@
 {% extends "planner/base.html" %}
+{% load planner_extras %}
 {% block title %}Session plan{% endblock %}
 {% block content %}
+<p><a href="{% url 'goal-refine' plan.goal.pk %}">&larr; Back to goal</a></p>
 <h1>Generated plan review</h1>
 <p>Screen 4 of 5: for {{ plan.goal.child.initial_or_name }} &middot; {{ plan.goal.domain.name }}
 &middot; {{ plan.get_environment_display }} &middot; {{ plan.session_length_minutes }} min session</p>
@@ -13,7 +15,12 @@
 {% for block in blocks %}
 <article>
     <h4>{{ block.order }}. {{ block.get_block_type_display }} — {{ block.title }} ({{ block.duration_minutes }} min)</h4>
-    <p style="white-space: pre-line;">{{ block.activity_description }}</p>
+    <p><strong>Steps:</strong></p>
+    <ul class="steps">
+        {% for step in block.activity_description|splitlines_clean %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ul>
     <p><strong>Clinical reasoning:</strong> {{ block.clinical_reasoning }}</p>
     {% if block.resources.all %}
     <p><strong>Resources:</strong> {% for r in block.resources.all %}{{ r.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
